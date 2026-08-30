@@ -1,0 +1,17 @@
+{
+  "name": "nak-strat-payment-service",
+  "version": "1.0.0",
+  "description": "Stripe payment service for the NAK Strat storefront on the Internet Computer",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "express": "^4.21.2",
+    "stripe": "^17.5.0"
+  }
+}
