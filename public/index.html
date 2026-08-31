@@ -1,0 +1,168 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Swap — N.A.K.</title>
+<meta name="description" content="Cross-chain swaps across 100+ chains. No wallet connection, no account.">
+<!-- Same-origin by default. Serving this page from naktoken.lol? Point it at the
+     Railway service instead, e.g. https://nak-strat-payments-production.up.railway.app/api/swap
+     and add that origin to SWAP_ALLOWED_ORIGINS on the service. -->
+<meta name="nak-swap-api" content="/api/swap">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700&family=Bodoni+Moda:opsz,wght@6..96,500;6..96,700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="./nak-swap.css">
+</head>
+<body>
+
+<header class="marquee">
+  <a class="marquee__mark" href="https://www.naktoken.lol">NAK</a>
+  <p class="marquee__line">Move into ICP from any of 100+ chains. No wallet connection, no account.</p>
+</header>
+
+<main id="main">
+
+  <!-- ========== Panel 1: build the swap ========== -->
+  <section class="panel" id="panel-build" aria-labelledby="build-heading">
+    <h1 class="panel__heading" id="build-heading">Swap</h1>
+
+    <div class="banner banner--error" id="config-error" hidden></div>
+
+    <form id="swap-form" novalidate>
+
+      <div class="leg">
+        <label class="leg__label" for="amount">You send</label>
+        <div class="leg__row">
+          <input
+            class="leg__amount"
+            id="amount"
+            name="amount"
+            type="text"
+            inputmode="decimal"
+            autocomplete="off"
+            spellcheck="false"
+            placeholder="0.0"
+            aria-describedby="limits">
+          <button class="picker" type="button" id="source-button" aria-haspopup="listbox" aria-expanded="false">
+            <span class="picker__symbol" id="source-symbol">—</span>
+            <span class="picker__chain" id="source-chain"></span>
+            <svg class="picker__caret" width="10" height="6" viewBox="0 0 10 6" aria-hidden="true"><path d="M1 1l4 4 4-4" fill="none" stroke="currentColor" stroke-width="1.5"/></svg>
+          </button>
+        </div>
+        <p class="leg__note" id="limits"></p>
+
+        <div class="menu" id="source-menu" role="listbox" aria-label="Choose what you send" hidden>
+          <input class="menu__search" id="source-search" type="search" placeholder="Search coins" autocomplete="off" aria-label="Search coins">
+          <ul class="menu__list" id="source-list"></ul>
+        </div>
+      </div>
+
+      <div class="divider">
+        <button class="divider__flip" type="button" id="flip" aria-label="Swap the two tokens">for</button>
+      </div>
+
+      <div class="leg leg--out">
+        <label class="leg__label" for="receive">You receive</label>
+        <div class="leg__row">
+          <output class="leg__amount leg__amount--out" id="receive" for="amount">—</output>
+          <button class="picker" type="button" id="dest-button" aria-haspopup="listbox" aria-expanded="false">
+            <span class="picker__symbol" id="dest-symbol">—</span>
+            <span class="picker__chain" id="dest-chain"></span>
+            <svg class="picker__caret" width="10" height="6" viewBox="0 0 10 6" aria-hidden="true"><path d="M1 1l4 4 4-4" fill="none" stroke="currentColor" stroke-width="1.5"/></svg>
+          </button>
+        </div>
+        <p class="leg__note" id="quote-note">Enter an amount to see a rate.</p>
+
+        <div class="menu" id="dest-menu" role="listbox" aria-label="Choose what you receive" hidden>
+          <input class="menu__search" id="dest-search" type="search" placeholder="Search coins" autocomplete="off" aria-label="Search coins">
+          <ul class="menu__list" id="dest-list"></ul>
+        </div>
+      </div>
+
+      <fieldset class="routing">
+        <legend class="routing__legend">Routing</legend>
+        <label class="option">
+          <input type="radio" name="type" value="private" checked>
+          <span class="option__body">
+            <span class="option__name">Private</span>
+            <span class="option__detail">Two exchange hops break the trail. Around 15–45 minutes.</span>
+          </span>
+        </label>
+        <label class="option">
+          <input type="radio" name="type" value="standard">
+          <span class="option__body">
+            <span class="option__name">Standard</span>
+            <span class="option__detail">One hop, usually a few minutes. The trail stays visible.</span>
+          </span>
+        </label>
+        <label class="toggle" id="fixed-wrap">
+          <input type="checkbox" id="fixed" name="fixed">
+          <span>Lock the rate. Needs a refund address and can limit routes.</span>
+        </label>
+      </fieldset>
+
+      <div class="field">
+        <label class="field__label" for="addressTo">Where should it go?</label>
+        <input class="field__input" id="addressTo" name="addressTo" type="text" autocomplete="off"
+               spellcheck="false" placeholder="Receiving wallet address">
+        <p class="field__note" id="address-note">Check it twice. Sent funds can't be recalled.</p>
+      </div>
+
+      <div class="field" id="refund-field" hidden>
+        <label class="field__label" for="refundAddress">Refund address</label>
+        <input class="field__input" id="refundAddress" name="refundAddress" type="text" autocomplete="off"
+               spellcheck="false" placeholder="Where a failed swap gets returned">
+        <p class="field__note">On the chain you're sending from.</p>
+      </div>
+
+      <div class="banner banner--error" id="form-error" hidden></div>
+
+      <button class="cta" type="submit" id="submit" disabled>Get deposit address</button>
+      <p class="fineprint">Rates come from Houdini's routing engine and move until your deposit lands, unless you lock them.</p>
+    </form>
+  </section>
+
+  <!-- ========== Panel 2: the open order ========== -->
+  <section class="panel panel--order" id="panel-order" aria-labelledby="order-heading" hidden>
+    <h1 class="panel__heading" id="order-heading">Send <span id="order-amount"></span></h1>
+    <p class="panel__sub">One transfer, exactly this amount, to the address below.</p>
+
+    <div class="deposit">
+      <code class="deposit__address" id="deposit-address"></code>
+      <button class="deposit__copy" type="button" id="copy-address">Copy</button>
+    </div>
+    <p class="deposit__tag" id="deposit-tag" hidden></p>
+
+    <dl class="facts">
+      <div class="fact"><dt>Order</dt><dd><code id="order-id"></code></dd></div>
+      <div class="fact"><dt>You receive</dt><dd id="order-out"></dd></div>
+      <div class="fact"><dt>Goes to</dt><dd><code id="order-receiver"></code></dd></div>
+      <div class="fact"><dt>Deposit window</dt><dd id="order-expiry"></dd></div>
+      <div class="fact" id="route-fact" hidden><dt>Route</dt><dd id="order-route"></dd></div>
+    </dl>
+
+    <ol class="rail" id="rail" aria-label="Order progress">
+      <li class="rail__step" data-step="WAITING"><span class="rail__dot"></span>Waiting for your deposit</li>
+      <li class="rail__step" data-step="CONFIRMING"><span class="rail__dot"></span>Confirming on chain</li>
+      <li class="rail__step" data-step="EXCHANGING"><span class="rail__dot"></span>Exchanging</li>
+      <li class="rail__step" data-step="ANONYMIZING"><span class="rail__dot"></span>Anonymizing</li>
+      <li class="rail__step" data-step="FINISHED"><span class="rail__dot"></span>Funds sent</li>
+    </ol>
+
+    <p class="status" id="order-status" role="status" aria-live="polite"></p>
+    <div class="banner banner--error" id="order-error" hidden></div>
+
+    <a class="next-step" id="next-step" href="#" target="_blank" rel="noopener noreferrer" hidden></a>
+    <button class="ghost" type="button" id="start-over">Start another swap</button>
+  </section>
+
+</main>
+
+<footer class="footer">
+  <p>Swaps are executed by Houdini, a third-party service. N.A.K. never custodies your funds or controls the swap.</p>
+</footer>
+
+<script src="./nak-swap.js" type="module"></script>
+</body>
+</html>
