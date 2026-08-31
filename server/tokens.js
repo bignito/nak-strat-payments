@@ -44,7 +44,7 @@ const NATIVE_CHAINS = {
   BNB: ["bsc", "bnb", "binance-smart-chain", "bep20"],
 };
 
-const cache = { featured: null, at: 0 };
+const cache = { featured: null, at: 0, catalog: null, catalogAt: 0 };
 
 /** Strip Houdini's token object down to what the browser actually needs. */
 function publicToken(token) {
@@ -169,6 +169,56 @@ async function resolveFeaturedTokens() {
   return cache.featured;
 }
 
+/**
+ * The full token catalog, cached.
+ *
+ * Fetched once and filtered in the browser, rather than querying Houdini on
+ * every keystroke. The partner account allows 10 requests a minute and each
+ * quote spends one, so search must not compete with quoting for that budget.
+ *
+ * Paging is capped: an unbounded loop against a catalog that grows would turn
+ * a boot into a rate-limit stall.
+ */
+async function resolveCatalog() {
+  if (cache.catalog && Date.now() - cache.catalogAt < TTL_MS) return cache.catalog;
+
+  const MAX_PAGES = 10;
+  const seen = new Map();
+  let totalPages = 1;
+
+  for (let page = 1; page <= Math.min(totalPages, MAX_PAGES); page++) {
+    let result;
+    try {
+      result = await searchTokens({ hasCex: true, pageSize: 1000, page });
+    } catch (err) {
+      console.error(`[catalog] page ${page} failed:`, err.message);
+      break;
+    }
+
+    totalPages = result.totalPages || 1;
+    for (const token of result.tokens || []) {
+      if (token.enabled === false) continue;
+      if (!seen.has(token.id)) seen.set(token.id, publicToken(token));
+    }
+    if (page < Math.min(totalPages, MAX_PAGES)) await sleep(1200);
+  }
+
+  if (!seen.size) throw new Error("Could not load the token catalog");
+
+  const list = [...seen.values()].sort(
+    (a, b) => a.symbol.localeCompare(b.symbol) || (a.chain || "").localeCompare(b.chain || "")
+  );
+
+  console.log(
+    `[catalog] ${list.length} tokens across ${new Set(list.map((t) => t.chain)).size} chains` +
+      (totalPages > MAX_PAGES ? ` (truncated at ${MAX_PAGES} of ${totalPages} pages)` : "")
+  );
+
+  cache.catalog = list;
+  cache.catalogAt = Date.now();
+  return list;
+}
+
 /** Warm the cache at boot so the first visitor doesn't pay the latency. */
 async function warmTokenCache() {
   try {
@@ -176,11 +226,16 @@ async function warmTokenCache() {
   } catch (err) {
     console.error("[tokens] warm-up failed:", err.message);
   }
+  try {
+    await resolveCatalog();
+  } catch (err) {
+    console.error("[catalog] warm-up failed:", err.message);
+  }
 }
 
 function clearTokenCache() {
-  cache.featured = null;
-  cache.at = 0;
+  cache.featured = cache.catalog = null;
+  cache.at = cache.catalogAt = 0;
 }
 
-module.exports = { publicToken, resolveFeaturedTokens, warmTokenCache, clearTokenCache };
+module.exports = { publicToken, resolveFeaturedTokens, resolveCatalog, warmTokenCache, clearTokenCache };

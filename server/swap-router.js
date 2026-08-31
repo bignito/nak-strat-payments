@@ -32,7 +32,7 @@ const {
   getWeeklyVolumeStats,
   searchTokens,
 } = require("./houdini.js");
-const { publicToken, resolveFeaturedTokens } = require("./tokens.js");
+const { publicToken, resolveCatalog, resolveFeaturedTokens } = require("./tokens.js");
 
 const router = Router();
 
@@ -156,7 +156,20 @@ router.get("/config", async (_req, res) => {
   }
 });
 
-// GET /api/swap/tokens?term=sol — source-token search for the picker.
+// GET /api/swap/catalog — every listed token, cached. The picker filters this
+// in the browser so typing costs no upstream requests.
+router.get("/catalog", rateLimit({ max: 30 }), async (_req, res) => {
+  try {
+    const tokens = await resolveCatalog();
+    res.set("Cache-Control", "public, max-age=3600");
+    res.json({ tokens, count: tokens.length });
+  } catch (err) {
+    if (err instanceof HoudiniError) return fail(res, err);
+    res.status(503).json({ error: "Token list is unavailable.", code: "catalog_unavailable" });
+  }
+});
+
+// GET /api/swap/tokens?term=sol — live search, used only if the catalog fails.
 router.get("/tokens", rateLimit({ max: 60 }), async (req, res) => {
   const term = String(req.query.term || "").slice(0, 100);
   if (term.length < 2) return res.json({ tokens: [] });
