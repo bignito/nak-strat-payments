@@ -1,22 +1,30 @@
 /**
- * NAK Strat — Stripe Payment Service
+ * NAK Strat — Stripe Payment Service + Swap
  *
- * This service is the ONLY place the Stripe secret key lives.
- * The Internet Computer canister calls this over HTTPS outcall; it never
- * sees or stores the key.
+ * This service is the ONLY place the Stripe secret key lives, and the only
+ * place the Houdini partner credentials live. The Internet Computer canister
+ * calls this over HTTPS outcall; it never sees or stores either.
  *
  * Endpoints:
  *   POST /create-checkout-session  -> creates a Stripe Checkout Session
  *   GET  /order-status/:orderId    -> canister polls this to confirm payment
  *   POST /webhook                  -> Stripe pushes payment events here
  *   GET  /health                   -> uptime check
+ *   /api/swap/*                    -> Houdini-backed swap API (see server/)
+ *   /                              -> the swap page (public/)
  *
- * All endpoints except /webhook and /health require:
+ * All endpoints except /webhook, /health, / and /api/swap require:
  *   Authorization: Bearer <CANISTER_SHARED_SECRET>
  */
 
 const express = require('express');
 const Stripe = require('stripe');
+const path = require('path');
+
+// Swap: Houdini-backed API and the page that uses it.
+const swapRouter = require('./server/swap-router.js');
+const { embedHeaders } = require('./server/embed-headers.js');
+const { warmTokenCache } = require('./server/tokens.js');
 
 const {
   STRIPE_SECRET_KEY,
@@ -38,6 +46,12 @@ for (const [name, value] of Object.entries({
 
 const stripe = new Stripe(STRIPE_SECRET_KEY, { apiVersion: '2024-06-20' });
 const app = express();
+
+// Railway terminates TLS upstream, so without this every request looks like it
+// came from the proxy. Houdini requires a real end-user IP for compliance, and
+// the swap rate limiter would otherwise treat all traffic as one client.
+// Does not affect the Stripe routes below.
+app.set('trust proxy', 1);
 
 /**
  * Order status store.
@@ -320,6 +334,24 @@ app.get('/order-status/:orderId', requireCanisterAuth, async (req, res) => {
 });
 
 app.get('/health', (_req, res) => res.json({ ok: true }));
+
+// ---------------------------------------------------------------------------
+// Swap
+//
+// Mounted here, below express.json(), on purpose. The swap router reuses the
+// parser already registered above, which sits below the webhook's
+// express.raw() — that ordering is what keeps Stripe signature verification
+// working. Moving these lines above express.json() would break the webhook.
+//
+// The static mount is last so it can never shadow a route above it.
+// ---------------------------------------------------------------------------
+app.use('/api/swap', swapRouter);
+app.use('/', embedHeaders(), express.static(path.join(__dirname, 'public'), { maxAge: '1h' }));
+
+// Resolve Houdini token IDs once at boot rather than on the first visitor.
+// Failures are logged and do not stop the service: a Houdini outage must not
+// take Stripe payments down with it.
+warmTokenCache();
 
 app.listen(PORT, () => {
   console.log(`NAK Strat payment service listening on port ${PORT}`);
