@@ -8,6 +8,12 @@ const API =
 
 const TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 
+/* ?embed=1 strips the masthead, intro column and footer so the page drops
+   straight into the dapp's Trade section, where that context already exists. */
+if (new URLSearchParams(location.search).get("embed") === "1") {
+  document.body.classList.add("is-embedded");
+}
+
 const $ = (id) => document.getElementById(id);
 
 const el = {

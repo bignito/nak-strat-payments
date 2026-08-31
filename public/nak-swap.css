@@ -77,15 +77,39 @@ body {
   background: var(--bg);
   color: var(--text);
   font-family: var(--sans);
-  font-size: 15px;
+  font-size: 16px;
   font-weight: 400;
-  line-height: 1.5;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 1.5rem;
-  padding: clamp(1.25rem, 4vw, 2.5rem) 1.25rem;
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  font-feature-settings: "cv02", "cv03", "cv04", "cv11";
 }
+
+/* Section rhythm copied from the dapp: px-6 py-20 inside a max-w-7xl centre. */
+.trade { padding: clamp(2.5rem, 8vw, 5rem) 1.5rem; }
+
+.trade__grid {
+  max-width: 80rem;
+  margin: 0 auto;
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 3rem;
+  align-items: start;
+}
+
+@media (min-width: 860px) {
+  .trade__grid { grid-template-columns: 1fr 1fr; gap: 4rem; }
+}
+
+.trade__intro { max-width: 36rem; }
+
+/* Embedded in the dapp's Trade section: the surrounding copy already exists
+   there, so only the swap panel renders. Set by ?embed=1. */
+body.is-embedded .trade { padding: 0; }
+body.is-embedded .trade__grid { grid-template-columns: 1fr; gap: 0; }
+body.is-embedded .masthead,
+body.is-embedded .trade__intro,
+body.is-embedded .footer { display: none; }
 
 :where(a, button, input, output, [tabindex]):focus-visible {
   outline: 1px solid var(--accent);
@@ -117,14 +141,15 @@ body {
 
 /* ---------------- Masthead ---------------- */
 
-.marquee {
-  width: 100%;
-  max-width: 33rem;
+.masthead {
   display: flex;
   align-items: center;
+  gap: 0;
+  padding: 1rem 1.5rem;
+  border-bottom: 1px solid var(--border);
 }
 
-.marquee__mark {
+.masthead__mark {
   font-family: var(--wordmark);
   font-size: 1rem;
   font-weight: 600;
@@ -133,7 +158,7 @@ body {
   text-decoration: none;
 }
 
-.marquee__name {
+.masthead__name {
   margin-left: 0.625rem;
   padding-left: 0.625rem;
   border-left: 1px solid var(--border);
@@ -142,10 +167,10 @@ body {
 }
 
 @media (max-width: 620px) {
-  .marquee__name { display: none; }
+  .masthead__name { display: none; }
 }
 
-.marquee__product {
+.masthead__product {
   margin-left: auto;
   font-size: 0.6875rem;
   font-weight: 600;
@@ -156,21 +181,44 @@ body {
 
 /* ---------------- Panels ---------------- */
 
-.panel {
-  width: 100%;
-  max-width: 33rem;
+/* .surface in the dapp has NO border-radius. Square corners are the
+   institutional signature; rounding is reserved for buttons and inputs. */
+.panel,
+.surface {
   background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: var(--radius);
-  padding: clamp(1.25rem, 4vw, 1.75rem);
 }
 
-.panel__heading {
-  margin: 0 0 0.25rem;
-  font-size: 1.375rem;
+.panel { padding: 1.5rem; }
+
+h2, .panel__heading {
+  font-family: var(--sans);
+  font-size: clamp(1.5rem, 3vw, 2rem);
   font-weight: 500;
-  letter-spacing: -0.015em;
-  line-height: 1.25;
+  line-height: 1.2;
+  letter-spacing: -0.02em;
+  color: var(--text);
+  margin: 0 0 1.25rem;
+}
+
+.panel__heading { font-size: 1.25rem; margin-bottom: 0.25rem; }
+
+.lede {
+  font-size: 1rem;
+  line-height: 1.625;
+  color: var(--text-muted);
+  margin: 0 0 2rem;
+}
+
+/* Eyebrow above a heading — the dapp's .section-label. */
+.section-label {
+  display: block;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.16em;
+  color: var(--text-muted);
+  margin: 0 0 1rem;
 }
 
 .panel__sub {
@@ -386,12 +434,13 @@ button.picker:hover { background: var(--surface-hover); border-color: var(--bord
 
 .field__input {
   width: 100%;
-  background: var(--bg);
-  border: 1px solid var(--border);
+  background: var(--surface);
+  border: 1px solid var(--border-strong);
   border-radius: var(--radius);
-  padding: 0.75rem 0.875rem;
+  padding: 0.625rem 0.75rem;
   color: var(--text);
-  font-size: 0.8125rem;
+  font-size: 0.875rem;
+  transition: border-color 0.2s ease, background-color 0.2s ease;
 }
 
 .field__input:focus { border-color: var(--accent); outline: none; }
@@ -407,19 +456,26 @@ button.picker:hover { background: var(--surface-hover); border-color: var(--bord
 
 /* ---------------- Actions ---------------- */
 
+/* Matches the dapp's .btn + .btn-primary exactly. */
 .cta {
-  display: block;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
   width: 100%;
   margin-top: 1.5rem;
-  padding: 0.8rem 1rem;
+  padding: 0.625rem 1.25rem;
   background: #ffffff;
-  color: var(--bg);
-  border: 1px solid #ffffff;
+  color: #08090a;
+  border: 1px solid transparent;
   border-radius: var(--radius);
   font-family: var(--sans);
   font-size: 0.875rem;
-  font-weight: 600;
+  font-weight: 500;
+  letter-spacing: 0.01em;
   cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  text-decoration: none;
 }
 
 .cta:hover:not(:disabled) { background: var(--text); }
@@ -431,22 +487,29 @@ button.picker:hover { background: var(--surface-hover); border-color: var(--bord
   cursor: not-allowed;
 }
 
-.ghost {
-  display: block;
-  width: 100%;
-  margin-top: 0.75rem;
-  padding: 0.7rem 1rem;
-  background: none;
-  color: var(--text-secondary);
-  border: 1px solid var(--border);
+/* Matches .btn + .btn-secondary. */
+.ghost,
+.btn-secondary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 0.625rem 1.25rem;
+  background: transparent;
+  color: var(--text);
+  border: 1px solid var(--border-strong);
   border-radius: var(--radius);
   font-family: var(--sans);
-  font-size: 0.8125rem;
+  font-size: 0.875rem;
   font-weight: 500;
+  letter-spacing: 0.01em;
   cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  text-decoration: none;
 }
 
-.ghost:hover { background: var(--surface-hover); color: var(--text); }
+.ghost { width: 100%; margin-top: 0.75rem; }
+.ghost:hover, .btn-secondary:hover { background: var(--surface-hover); }
 
 .next-step {
   display: block;
@@ -537,17 +600,35 @@ button.picker:hover { background: var(--surface-hover); border-color: var(--bord
 
 .facts { margin: 1.5rem 0 0; }
 
+/* Mirrors .spec-table: uppercase muted row headers, hairline row rules. */
+.facts { border-top: 1px solid var(--border); }
+
 .fact {
   display: flex;
   justify-content: space-between;
   gap: 1rem;
-  padding: 0.625rem 0;
-  border-top: 1px solid var(--border);
+  padding: 0.625rem 0.75rem;
+  border-bottom: 1px solid var(--border);
   font-size: 0.8125rem;
 }
 
+.fact:last-child { border-bottom: none; }
 .fact dt { flex-shrink: 0; align-self: center; }
-.fact dd { margin: 0; text-align: right; min-width: 0; word-break: break-all; }
+.fact dd { margin: 0; text-align: right; min-width: 0; word-break: break-all; color: var(--text); }
+
+.spec-table { width: 100%; border-collapse: collapse; font-size: 0.8125rem; }
+.spec-table th {
+  padding: 0.625rem 0.75rem;
+  border-bottom: 1px solid var(--border);
+  text-align: left;
+  color: var(--text-muted);
+  font-size: 0.6875rem;
+  text-transform: uppercase;
+  letter-spacing: 0.16em;
+  font-weight: 600;
+}
+.spec-table td { padding: 0.625rem 0.75rem; border-bottom: 1px solid var(--border); text-align: right; color: var(--text); }
+.spec-table tr:last-child th, .spec-table tr:last-child td { border-bottom: none; }
 
 /* ---------------- Progress rail ---------------- */
 
@@ -609,8 +690,9 @@ button.picker:hover { background: var(--surface-hover); border-color: var(--bord
 /* ---------------- Footer ---------------- */
 
 .footer {
-  max-width: 33rem;
-  text-align: center;
+  max-width: 80rem;
+  margin: 0 auto;
+  padding: 0 1.5rem clamp(2rem, 6vw, 4rem);
   font-size: 0.6875rem;
   line-height: 1.6;
   color: var(--text-muted);
