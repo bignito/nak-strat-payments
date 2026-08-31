@@ -1,3 +1,36 @@
+/* Self-hosted fonts, byte-identical to the ones the dapp serves.
+   Copied from the landing page repo rather than loaded from Google Fonts so
+   the swap renders in exactly the same faces, works inside the canister's CSP
+   without allowing an external font origin, and does not leak visitor IPs to
+   a third party. */
+@font-face {
+  font-family: "Inter";
+  src: url("./assets/fonts/Inter.woff2") format("woff2");
+  font-weight: 100 900;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "JetBrains Mono";
+  src: url("./assets/fonts/JetBrainsMono.woff2") format("woff2");
+  font-weight: 100 700;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Oswald";
+  src: url("./assets/fonts/Oswald.woff2") format("woff2");
+  font-weight: 400;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Oswald";
+  src: url("./assets/fonts/Oswald-600.woff2") format("woff2");
+  font-weight: 600;
+  font-display: swap;
+}
+
 /* ==================================================================
    NAKSwap — New Age Kapital institutional design system.
 
@@ -94,7 +127,7 @@ body {
 .marquee__mark {
   font-family: var(--wordmark);
   font-size: 1rem;
-  font-weight: 500;
+  font-weight: 600;
   letter-spacing: 0.14em;
   color: var(--text);
   text-decoration: none;

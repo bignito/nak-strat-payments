@@ -25,8 +25,9 @@ function embedHeaders() {
   const policy = [
     "default-src 'self'",
     "script-src 'self'",
-    "style-src 'self' https://fonts.googleapis.com",
-    "font-src https://fonts.gstatic.com",
+    "style-src 'self'",
+    // Fonts are self-hosted, so no external font origin is needed.
+    "font-src 'self'",
     // The API origin the page calls. Same-origin on Railway; widen only if the
     // page is ever served from somewhere else.
     "connect-src 'self'",
