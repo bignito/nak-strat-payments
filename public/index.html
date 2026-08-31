@@ -3,29 +3,31 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Swap — N.A.K.</title>
-<meta name="description" content="Cross-chain swaps across 100+ chains. No wallet connection, no account.">
+<title>NAKSwap — New Age Kapital</title>
+<meta name="description" content="NAKSwap — cross-chain swaps into the Internet Computer ecosystem. No wallet connection, no account.">
 <!-- Same-origin by default. Serving this page from naktoken.lol? Point it at the
      Railway service instead, e.g. https://nak-strat-payments-production.up.railway.app/api/swap
      and add that origin to SWAP_ALLOWED_ORIGINS on the service. -->
 <meta name="nak-swap-api" content="/api/swap">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700&family=Bodoni+Moda:opsz,wght@6..96,500;6..96,700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&family=Oswald:wght@500&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="./nak-swap.css">
 </head>
 <body>
 
 <header class="marquee">
-  <a class="marquee__mark" href="https://www.naktoken.lol">NAK</a>
-  <p class="marquee__line">Move into ICP from any of 100+ chains. No wallet connection, no account.</p>
+  <a class="marquee__mark" href="https://www.naktoken.lol">N.A.K.</a>
+  <span class="marquee__name">New Age Kapital</span>
+  <span class="marquee__product">NAKSwap</span>
 </header>
 
 <main id="main">
 
   <!-- ========== Panel 1: build the swap ========== -->
   <section class="panel" id="panel-build" aria-labelledby="build-heading">
-    <h1 class="panel__heading" id="build-heading">Swap</h1>
+    <h1 class="panel__heading" id="build-heading">NAKSwap</h1>
+    <p class="panel__sub">Move into the Internet Computer from any of 100+ chains. No wallet connection, no account.</p>
 
     <div class="banner banner--error" id="config-error" hidden></div>
 
@@ -59,10 +61,10 @@
       </div>
 
       <div class="divider">
-        <button class="divider__flip" type="button" id="flip" aria-label="Swap the two tokens">for</button>
+        <button class="divider__flip" type="button" id="flip" aria-label="Swap the two tokens">Flip</button>
       </div>
 
-      <div class="leg leg--out">
+      <div class="leg">
         <label class="leg__label" for="receive">You receive</label>
         <div class="leg__row">
           <output class="leg__amount leg__amount--out" id="receive" for="amount">—</output>
@@ -124,7 +126,7 @@
   </section>
 
   <!-- ========== Panel 2: the open order ========== -->
-  <section class="panel panel--order" id="panel-order" aria-labelledby="order-heading" hidden>
+  <section class="panel" id="panel-order" aria-labelledby="order-heading" hidden>
     <h1 class="panel__heading" id="order-heading">Send <span id="order-amount"></span></h1>
     <p class="panel__sub">One transfer, exactly this amount, to the address below.</p>
 
@@ -160,7 +162,7 @@
 </main>
 
 <footer class="footer">
-  <p>Swaps are executed by Houdini, a third-party service. N.A.K. never custodies your funds or controls the swap.</p>
+  <p>Swaps are executed by Houdini, a third-party service. New Age Kapital never custodies your funds or controls the swap.</p>
 </footer>
 
 <script src="./nak-swap.js" type="module"></script>

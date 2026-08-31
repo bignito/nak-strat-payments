@@ -67,7 +67,52 @@ const state = {
   quoteSeq: 0,
   pollTimer: null,
   countdownTimer: null,
+  catalog: null,
+  catalogLoading: null,
 };
+
+/**
+ * The full token list, fetched once and filtered locally.
+ *
+ * Searching server-side on every keystroke would spend the same rate-limit
+ * budget the quotes need. Falls back to live search if the catalog is down.
+ */
+async function getCatalog() {
+  if (state.catalog) return state.catalog;
+  if (!state.catalogLoading) {
+    state.catalogLoading = api("/catalog")
+      .then(({ tokens }) => (state.catalog = tokens))
+      .catch(() => null);
+  }
+  return state.catalogLoading;
+}
+
+/** Rank matches so an exact ticker beats a substring buried in a name. */
+function filterTokens(tokens, term) {
+  const q = term.trim().toLowerCase();
+  if (!q) return tokens.slice(0, 50);
+
+  const scored = [];
+  for (const t of tokens) {
+    const symbol = t.symbol.toLowerCase();
+    const name = (t.name || "").toLowerCase();
+    const chain = (t.chain || "").toLowerCase();
+
+    let score = -1;
+    if (symbol === q) score = 0;
+    else if (symbol.startsWith(q)) score = 1;
+    else if (name.startsWith(q)) score = 2;
+    else if (symbol.includes(q)) score = 3;
+    else if (name.includes(q)) score = 4;
+    else if (chain.includes(q)) score = 5;
+    if (score >= 0) scored.push([score, t]);
+  }
+
+  return scored
+    .sort((a, b) => a[0] - b[0] || a[1].symbol.localeCompare(b[1].symbol))
+    .slice(0, 60)
+    .map(([, t]) => t);
+}
 
 /* ---------------- helpers ---------------- */
 
@@ -208,12 +253,18 @@ function makePicker(side) {
     }
   }
 
-  function open() {
+  async function open() {
     menu.hidden = false;
     button.setAttribute("aria-expanded", "true");
     search.value = "";
     renderList(state.featured);
     search.focus();
+
+    // Load the full list in the background; featured tokens are usable meanwhile.
+    const catalog = await getCatalog();
+    if (catalog && !menu.hidden && !search.value.trim()) {
+      search.placeholder = `Search ${catalog.length.toLocaleString()} coins`;
+    }
   }
 
   function close() {
@@ -239,6 +290,12 @@ function makePicker(side) {
     "input",
     debounce(async () => {
       const term = search.value.trim();
+      if (!term) return renderList(state.featured);
+
+      const catalog = await getCatalog();
+      if (catalog) return renderList(filterTokens(catalog, term));
+
+      // Catalog unavailable — fall back to server-side search.
       if (term.length < 2) return renderList(state.featured);
       try {
         const { tokens } = await api(`/tokens?term=${encodeURIComponent(term)}`);
@@ -246,7 +303,7 @@ function makePicker(side) {
       } catch {
         renderList([]);
       }
-    }, 250)
+    }, 200)
   );
 
   return { close };
