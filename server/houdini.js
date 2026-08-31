@@ -23,12 +23,13 @@ const credentialsPresent = () => Boolean(API_KEY && API_SECRET);
 
 /** Error carrying an upstream HTTP status so the router can pass it through. */
 class HoudiniError extends Error {
-  constructor(message, { status = 502, code = "houdini_error", requestId } = {}) {
+  constructor(message, { status = 502, code = "houdini_error", requestId, retryAfterMs } = {}) {
     super(message);
     this.name = "HoudiniError";
     this.status = status;
     this.code = code;
     this.requestId = requestId;
+    this.retryAfterMs = retryAfterMs;
   }
 }
 
@@ -63,7 +64,21 @@ function buildQuery(params = {}) {
   return qs ? `?${qs}` : "";
 }
 
-async function request(path, { method = "GET", query, body, headers = {}, timeoutMs = 20000 } = {}) {
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+/**
+ * Houdini's rate limit message carries the wait in plain text, e.g.
+ * "FREE tier: 10 readHeavy requests per minute. Try again in 12 seconds."
+ * Parsing it beats guessing a backoff.
+ */
+function retryDelayFrom(message, headerValue) {
+  const header = Number(headerValue);
+  if (Number.isFinite(header) && header > 0) return header * 1000;
+  const match = /try again in (\d+)\s*second/i.exec(message || "");
+  return match ? (Number(match[1]) + 1) * 1000 : 5000;
+}
+
+async function request(path, { method = "GET", query, body, headers = {}, timeoutMs = 20000, retries = 2 } = {}) {
   if (!credentialsPresent()) {
     throw new HoudiniError("Swap service is not configured", {
       status: 503,
@@ -107,13 +122,24 @@ async function request(path, { method = "GET", query, body, headers = {}, timeou
     payload = null;
   }
 
+  if (response.status === 429 && retries > 0) {
+    const wait = retryDelayFrom(payload?.message, response.headers.get("retry-after"));
+    // Capped so a boot-time warm-up can't stall the process for minutes.
+    await sleep(Math.min(wait, 20000));
+    return request(path, { method, query, body, headers, timeoutMs, retries: retries - 1 });
+  }
+
   if (!response.ok) {
     const message = payload?.message || `Houdini returned ${response.status}`;
     throw new HoudiniError(message, {
       // 5xx upstream becomes 502 here; 4xx is usually the caller's fault and passes through.
       status: response.status >= 500 ? 502 : response.status,
-      code: payload?.code || "houdini_error",
+      code: response.status === 429 ? "rate_limited" : payload?.code || "houdini_error",
       requestId: payload?.requestId,
+      retryAfterMs:
+        response.status === 429
+          ? retryDelayFrom(payload?.message, response.headers.get("retry-after"))
+          : undefined,
     });
   }
 
