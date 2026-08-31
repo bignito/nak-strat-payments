@@ -3,20 +3,24 @@
  *
  * Mount in the existing nak-strat-payments app:
  *
- *   import express from "express";
- *   import swapRouter from "./server/swap-router.js";
+ *   const swapRouter = require("./server/swap-router.js");
+ *   const { embedHeaders } = require("./server/embed-headers.js");
+ *   const { warmTokenCache } = require("./server/tokens.js");
  *
- *   app.set("trust proxy", 1);          // Railway sits behind a proxy
+ *   app.set("trust proxy", 1);  // Railway sits behind a proxy
  *   app.use("/api/swap", swapRouter);
- *   app.use("/swap", express.static("public"));
+ *
+ * Mount this BELOW the existing express.json() line, which sits below the
+ * Stripe webhook's express.raw(). That order is what keeps webhook signature
+ * verification working — do not move it.
  *
  * Everything here is a narrowed proxy: the browser never sees a Houdini
  * credential, and responses are reshaped so partner-internal fields
  * (commission, markup, provider allowlists) don't leak.
  */
 
-import { Router } from "express";
-import {
+const { Router } = require("express");
+const {
   HoudiniError,
   createExchange,
   credentialsPresent,
@@ -27,8 +31,8 @@ import {
   getVolumeStats,
   getWeeklyVolumeStats,
   searchTokens,
-} from "./houdini.js";
-import { publicToken, resolveFeaturedTokens } from "./tokens.js";
+} = require("./houdini.js");
+const { publicToken, resolveFeaturedTokens } = require("./tokens.js");
 
 const router = Router();
 
@@ -255,7 +259,7 @@ router.post("/order", rateLimit({ max: 12 }), async (req, res) => {
     return res.status(400).json({ error: "Get a quote first." });
   }
   if (!addressTo || typeof addressTo !== "string" || addressTo.length > 200) {
-    return res.status(400).json({ error: "Enter the wallet address that should receive your NAK." });
+    return res.status(400).json({ error: "Enter the wallet address that should receive the funds." });
   }
 
   try {
@@ -362,4 +366,4 @@ router.get("/stats/chart", requireOperator, async (req, res) => {
   }
 });
 
-export default router;
+module.exports = router;

@@ -6,7 +6,7 @@
  * is to never call /tokens on a per-user request.
  */
 
-import { searchTokens } from "./houdini.js";
+const { searchTokens } = require("./houdini.js");
 
 const TTL_MS = 24 * 60 * 60 * 1000;
 
@@ -19,7 +19,7 @@ const FEATURED_SYMBOLS = (process.env.SWAP_FEATURED_SYMBOLS || "BTC,ETH,USDT,USD
 const cache = { featured: null, at: 0 };
 
 /** Strip Houdini's token object down to what the browser actually needs. */
-export function publicToken(token) {
+function publicToken(token) {
   if (!token) return null;
   return {
     id: token.id,
@@ -35,7 +35,7 @@ export function publicToken(token) {
 }
 
 /** The tokens offered up front on both sides of the swap. */
-export async function resolveFeaturedTokens() {
+async function resolveFeaturedTokens() {
   if (cache.featured && Date.now() - cache.at < TTL_MS) return cache.featured;
 
   const found = [];
@@ -60,7 +60,7 @@ export async function resolveFeaturedTokens() {
 }
 
 /** Warm the cache at boot so the first visitor doesn't pay the latency. */
-export async function warmTokenCache() {
+async function warmTokenCache() {
   try {
     await resolveFeaturedTokens();
   } catch (err) {
@@ -68,7 +68,9 @@ export async function warmTokenCache() {
   }
 }
 
-export function clearTokenCache() {
+function clearTokenCache() {
   cache.featured = null;
   cache.at = 0;
 }
+
+module.exports = { publicToken, resolveFeaturedTokens, warmTokenCache, clearTokenCache };

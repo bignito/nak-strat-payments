@@ -19,10 +19,10 @@ if (!API_KEY || !API_SECRET) {
   );
 }
 
-export const credentialsPresent = () => Boolean(API_KEY && API_SECRET);
+const credentialsPresent = () => Boolean(API_KEY && API_SECRET);
 
 /** Error carrying an upstream HTTP status so the router can pass it through. */
-export class HoudiniError extends Error {
+class HoudiniError extends Error {
   constructor(message, { status = 502, code = "houdini_error", requestId } = {}) {
     super(message);
     this.name = "HoudiniError";
@@ -38,7 +38,7 @@ export class HoudiniError extends Error {
  * These must describe the end user, not this server, so they are derived from
  * the inbound browser request.
  */
-export function complianceHeaders(req) {
+function complianceHeaders(req) {
   const forwarded = (req.headers["x-forwarded-for"] || "").split(",")[0].trim();
   const ip = forwarded || req.ip || req.socket?.remoteAddress || "0.0.0.0";
 
@@ -124,22 +124,36 @@ async function request(path, { method = "GET", query, body, headers = {}, timeou
 /* Endpoints                                                           */
 /* ------------------------------------------------------------------ */
 
-export const searchTokens = (params, req) =>
+const searchTokens = (params, req) =>
   request("/tokens", { query: params, headers: req ? complianceHeaders(req) : {} });
 
-export const getQuotes = (params, req) =>
+const getQuotes = (params, req) =>
   request("/quotes", { query: params, headers: complianceHeaders(req) });
 
-export const createExchange = (body, req) =>
+const createExchange = (body, req) =>
   request("/exchanges", { method: "POST", body, headers: complianceHeaders(req) });
 
-export const getOrder = (houdiniId, req) =>
+const getOrder = (houdiniId, req) =>
   request(`/orders/${encodeURIComponent(houdiniId)}`, { headers: complianceHeaders(req) });
 
-export const getMinMax = (params, req) =>
+const getMinMax = (params, req) =>
   request("/minmax", { query: params, headers: complianceHeaders(req) });
 
 /* Partner stats — account-scoped, never exposed to the browser. */
-export const getVolumeStats = () => request("/stats/volume");
-export const getWeeklyVolumeStats = () => request("/stats/weeklyVolume");
-export const getChartStats = (params) => request("/stats/chart", { query: params });
+const getVolumeStats = () => request("/stats/volume");
+const getWeeklyVolumeStats = () => request("/stats/weeklyVolume");
+const getChartStats = (params) => request("/stats/chart", { query: params });
+
+module.exports = {
+  HoudiniError,
+  credentialsPresent,
+  complianceHeaders,
+  searchTokens,
+  getQuotes,
+  createExchange,
+  getOrder,
+  getMinMax,
+  getVolumeStats,
+  getWeeklyVolumeStats,
+  getChartStats,
+};

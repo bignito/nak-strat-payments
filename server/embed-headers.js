@@ -18,7 +18,7 @@ const ANCESTORS = (process.env.SWAP_FRAME_ANCESTORS || "")
   .map((o) => o.trim().replace(/\/$/, ""))
   .filter(Boolean);
 
-export function embedHeaders() {
+function embedHeaders() {
   // No ancestors configured means the page is standalone: refuse all framing.
   const frameAncestors = ANCESTORS.length ? ANCESTORS.join(" ") : "'none'";
 
@@ -45,3 +45,5 @@ export function embedHeaders() {
     next();
   };
 }
+
+module.exports = { embedHeaders };
