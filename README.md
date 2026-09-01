@@ -1,94 +1,98 @@
-# NAK Strat — Stripe Payment Service
+# N.A.K. — payment, email and submissions service
 
-The only place your Stripe secret key lives. Your Internet Computer canister
-calls this service over HTTPS outcall; it never holds the key itself.
+The only place Stripe and Resend credentials live. The Internet Computer
+canister calls this over HTTPS outcall; it never holds a key, because canister
+state is replicated across independent node providers and is not confidential
+storage.
 
-## Why this exists
+## Deploying
 
-Canister state is replicated across independent node providers. Anything you
-store in a canister is readable by whoever operates those nodes. A Stripe
-secret key there would be exposed, and webhook signature verification would be
-unreliable because Stripe can't deliver a raw request body to a canister in a
-form that survives replica consensus.
+Commit all five files to `bignito/nak-strat-payments`, replacing the existing
+`server.js` and `package.json`:
 
-This service sits between them. It's small on purpose.
+```
+server.js      package.json      db.js      email.js      schema.sql
+```
+
+Railway redeploys on push. The schema applies automatically at boot — no
+migration step to run.
 
 ## Environment variables
 
-| Variable | What it is |
+Already set on the `nak-strat-payments` service:
+
+| Variable | Purpose |
 |---|---|
-| `STRIPE_SECRET_KEY` | Your Stripe secret key. `sk_test_...` while testing, `sk_live_...` in production. |
-| `STRIPE_WEBHOOK_SECRET` | From the Stripe webhook endpoint you create below. Starts `whsec_...`. |
-| `CANISTER_SHARED_SECRET` | A long random string you generate. The canister sends it as a bearer token. |
-| `PORT` | Optional. Defaults to 3000. Most hosts set this for you. |
+| `STRIPE_SECRET_KEY` | Stripe secret key |
+| `STRIPE_WEBHOOK_SECRET` | Signing secret from the Stripe webhook endpoint |
+| `CANISTER_SHARED_SECRET` | Bearer token the canister authenticates with |
+| `DATABASE_URL` | Points at `nak-strat-db` over Railway's private network |
+| `RESEND_API_KEY` | Resend API key |
+| `FROM_EMAIL` | `NAK STRATS <orders@naktoken.lol>` |
+| `PORT` | 3000 |
 
-Generate the shared secret with:
+Worth adding:
 
-```bash
-openssl rand -hex 32
+| Variable | Purpose |
+|---|---|
+| `SITE_URL` | `https://www.naktoken.lol` — used in email links |
+| `REPLY_TO_EMAIL` | An inbox you actually read. Without it, replies go nowhere. |
+| `ADMIN_NOTIFY_EMAIL` | Where new-submission notifications land |
+
+## Endpoint paths are not arbitrary
+
+Every path matches exactly what the canister constructs in
+`src/backend/lib/{payment-service,email,submissions,consent}.mo`. Renaming one
+silently breaks that call — the outcall will 404 and the canister reports a
+generic failure.
+
+```
+POST /create-checkout-session      Stripe Checkout Session
+GET  /order-status/:reference      canister polls to confirm payment
+POST /webhook                      Stripe events (signature-verified, no bearer)
+POST /orders/:reference/details    store shipping details
+GET  /orders/:reference/details    read back for fulfilment
+POST /emails/order-confirmation
+POST /emails/payment-pending
+POST /emails/shipping
+POST /emails/unsubscribe
+GET  /emails/consent-list          CSV of consented addresses
+POST /submissions
+GET  /submissions
+GET  /health
 ```
 
-## Deploy
+## Two details that will bite if changed
 
-### Railway or Render
+**The webhook route is registered before `express.json()`.** Stripe signature
+verification needs the raw request body. Moving that block below the JSON
+parser breaks every webhook with a signature error that looks like a wrong
+secret.
 
-1. Push this folder to a Git repository.
-2. Create a new service pointed at that repo.
-3. Set the three environment variables above.
-4. Deploy. Note the public URL you get back.
+**Email endpoints return `{"ok":"true"}` — the string, not the boolean.** The
+canister parses responses with a string-field extractor and checks for
+`"true"`. A JSON boolean would not match and every send would be reported as
+failed even when the mail went out.
 
-### Fly.io
+## After deploying
 
-```bash
-fly launch --no-deploy
-fly secrets set STRIPE_SECRET_KEY=sk_test_... \
-               STRIPE_WEBHOOK_SECRET=whsec_... \
-               CANISTER_SHARED_SECRET=<your random hex>
-fly deploy
-```
+Check `https://nak-strat-payments-production.up.railway.app/health` — you want
+`{"ok":true,"db":true}`. If `db` is false, the schema did not apply; check the
+deploy logs for a connection error.
 
-### Vercel
-
-Works, but needs `vercel.json` routing all paths to `server.js` and the raw-body
-handling on `/webhook` can be fragile on serverless. Railway or Fly is the
-smoother path here.
-
-## Stripe setup
-
-1. **Rotate the key you pasted into chat.** Stripe Dashboard → Developers → API
-   keys → roll it. Assume the old one is compromised.
-2. Create the webhook: Developers → Webhooks → Add endpoint.
-   - URL: `https://your-service-url/webhook`
-   - Events: `checkout.session.completed`, `checkout.session.expired`,
-     `payment_intent.payment_failed`
-3. Copy the signing secret into `STRIPE_WEBHOOK_SECRET` and redeploy.
-
-## Wire it to the canister
-
-In your NAK Strat admin panel, set:
-
-- `PAYMENT_SERVICE_URL` → `https://your-service-url`
-- `PAYMENT_SERVICE_TOKEN` → the same `CANISTER_SHARED_SECRET`
-
-## Test before going live
-
-Use Stripe test mode and card `4242 4242 4242 4242` with any future expiry and
-any CVC. Walk the whole path: add a cologne to the cart, check out with card,
-complete payment, land on the success page, and confirm the order flips to paid
-in your canister — not just in Stripe.
-
-Then run the failure cases, because these are the ones that bite:
-
-- Cancel at Stripe Checkout and confirm the order does not mark paid.
-- Card `4000 0000 0000 0002` (generic decline).
-- Let a session expire without paying, and confirm reserved inventory releases.
-- Refresh the success page several times, and confirm inventory decrements once.
-
-Only switch `STRIPE_SECRET_KEY` to a live key after all of those behave.
+Then place a test order and confirm a confirmation email arrives. Crypto orders
+also get a payment-pending email at order creation, which is the one that
+matters most — a crypto customer who closes the tab otherwise has no record of
+their reference.
 
 ## Notes
 
-Order state is in memory. That's deliberate — `/order-status` falls back to
-querying Stripe directly, so a restart loses nothing that can't be re-derived.
-Move to Redis or Postgres when you want order history and analytics in one
-place rather than reading them out of the Stripe dashboard.
+Suppression always beats consent: an address on the suppression list is
+excluded from `/emails/consent-list` even if a later order opts them back in.
+
+Transactional email (order confirmation, payment pending, shipping, submission
+acknowledgement) sends regardless of marketing consent. It is a direct response
+to something the person did. Only marketing checks suppression.
+
+Submissions use a honeypot field named `company`. When it is filled the request
+returns success without storing anything, so a bot gets no signal it was caught.
