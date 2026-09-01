@@ -12,6 +12,17 @@ const TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
    straight into the dapp's Trade section, where that context already exists. */
 if (new URLSearchParams(location.search).get("embed") === "1") {
   document.body.classList.add("is-embedded");
+
+  /* Report our height to the parent so the iframe can size to content instead
+     of scrolling inside a fixed box. The panel grows and shrinks a lot — the
+     order view is much taller than the form — so a fixed height would either
+     clip the deposit address or leave dead space. */
+  const postHeight = () => {
+    const height = Math.ceil(document.documentElement.scrollHeight);
+    parent.postMessage({ type: "nakswap:height", height }, "*");
+  };
+  new ResizeObserver(postHeight).observe(document.documentElement);
+  window.addEventListener("load", postHeight);
 }
 
 const $ = (id) => document.getElementById(id);

@@ -111,6 +111,17 @@ body.is-embedded .masthead,
 body.is-embedded .trade__intro,
 body.is-embedded .footer { display: none; }
 
+/* The dapp's Trade column is already a bordered .surface with its own padding
+   and "Powered by Houdiniswap" label. Embedded, the panel drops its own chrome
+   so there is no double border, double padding or duplicated label. */
+body.is-embedded .panel {
+  background: transparent;
+  border: 0;
+  padding: 0;
+}
+
+body.is-embedded .panel > .section-label { display: none; }
+
 :where(a, button, input, output, [tabindex]):focus-visible {
   outline: 1px solid var(--accent);
   outline-offset: 2px;
@@ -509,6 +520,8 @@ button.picker:hover { background: var(--surface-hover); border-color: var(--bord
 }
 
 .ghost { width: 100%; margin-top: 0.75rem; }
+/* A class, not a style attribute: style-src 'self' blocks inline styles. */
+.btn-secondary--spaced { margin-top: 2rem; }
 .ghost:hover, .btn-secondary:hover { background: var(--surface-hover); }
 
 .next-step {
