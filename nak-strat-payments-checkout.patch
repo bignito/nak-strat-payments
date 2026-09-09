@@ -1,0 +1,101 @@
+--- nak-strat-payments-main/server.js	2026-09-01 16:14:59.000000000 +0000
++++ patched/server.js	2026-09-09 17:18:31.331307744 +0000
+@@ -54,6 +54,13 @@
+ 
+ const stripe = new Stripe(STRIPE_SECRET_KEY, { apiVersion: '2024-06-20' });
+ const SITE = (SITE_URL || 'https://www.naktoken.lol').replace(/\/$/, '');
++
++// US-only. Alcohol-based fragrance is DOT-regulated hazmat; Stripe must refuse
++// a non-US shipping address at the checkout page, not at fulfilment time.
++const ALLOWED_SHIPPING_COUNTRIES = (process.env.ALLOWED_SHIPPING_COUNTRIES || 'US')
++  .split(',')
++  .map((c) => c.trim().toUpperCase())
++  .filter(Boolean);
+ const app = express();
+ app.set('trust proxy', 1);
+ 
+@@ -168,6 +175,37 @@
+   for (const [k, v] of buckets) if (now > v.reset) buckets.delete(k);
+ }, 60_000).unref();
+ 
++/* ------------------ Stripe: canister -> product mapping ----------------- */
++// Products are mirrored into Stripe with metadata.canister_product_id set to
++// the canister's Product.id. Referencing them by id gives Checkout the catalog
++// image, name and description instead of a bare ad-hoc line item.
++//
++// The AMOUNT still comes from the canister on every call. We pass `product`
++// inside price_data rather than a stored `price` id, so the canister stays the
++// single source of truth for pricing and a price change needs no Stripe write.
++
++let productMap = new Map();
++let productMapLoadedAt = 0;
++const PRODUCT_MAP_TTL_MS = 10 * 60 * 1000;
++
++async function loadProductMap(force = false) {
++  if (!force && Date.now() - productMapLoadedAt < PRODUCT_MAP_TTL_MS) return productMap;
++  const next = new Map();
++  try {
++    for await (const product of stripe.products.list({ active: true, limit: 100 })) {
++      const id = product.metadata?.canister_product_id;
++      if (id) next.set(String(id), product.id);
++    }
++    productMap = next;
++    productMapLoadedAt = Date.now();
++  } catch (err) {
++    // Keep whatever we had. A stale map degrades to ad-hoc line items; it
++    // must never take the checkout down.
++    console.error('[product-map] refresh failed:', err.message);
++  }
++  return productMap;
++}
++
+ /* ------------------- Stripe: create checkout session ------------------- */
+ app.post('/create-checkout-session', requireCanisterAuth, async (req, res) => {
+   try {
+@@ -180,18 +218,33 @@
+ 
+     // The canister is the source of truth for pricing. This service passes
+     // through what it is given and never computes or adjusts an amount.
++    const products = await loadProductMap();
++
+     const stripeLineItems = lineItems.map((item) => {
+       const unitAmount = Number(item.unitAmount);
+       const quantity = Number(item.quantity);
+       if (!Number.isInteger(unitAmount) || unitAmount <= 0) throw new Error(`bad unitAmount for ${item.name}`);
+       if (!Number.isInteger(quantity) || quantity <= 0) throw new Error(`bad quantity for ${item.name}`);
++
++      // The canister sends productId; use the mirrored catalog product when we
++      // have it, and fall back to an ad-hoc product so an unmapped item still
++      // sells rather than failing the whole order.
++      const mapped = item.productId ? products.get(String(item.productId)) : undefined;
++      if (!mapped && item.productId) {
++        console.warn(`[checkout] no Stripe product for canister id ${item.productId} (${item.name})`);
++      }
++
+       return {
+         price_data: {
+           currency,
+-          product_data: {
+-            name: String(item.name || 'Item'),
+-            ...(item.description ? { description: String(item.description) } : {}),
+-          },
++          ...(mapped
++            ? { product: mapped }
++            : {
++                product_data: {
++                  name: String(item.name || 'Item'),
++                  ...(item.description ? { description: String(item.description) } : {}),
++                },
++              }),
+           unit_amount: unitAmount,
+         },
+         quantity,
+@@ -208,7 +261,7 @@
+         success_url: `${success}${success.includes('?') ? '&' : '?'}reference=${encodeURIComponent(ref)}`,
+         cancel_url: `${cancel}${cancel.includes('?') ? '&' : '?'}reference=${encodeURIComponent(ref)}`,
+         ...(customerEmail ? { customer_email: customerEmail } : {}),
+-        shipping_address_collection: { allowed_countries: ['US', 'CA', 'GB', 'AU', 'DE', 'FR', 'NL', 'IE'] },
++        shipping_address_collection: { allowed_countries: ALLOWED_SHIPPING_COUNTRIES },
+         phone_number_collection: { enabled: true },
+         metadata: { order_id: ref, reference: ref },
+         payment_intent_data: { metadata: { order_id: ref, reference: ref } },
